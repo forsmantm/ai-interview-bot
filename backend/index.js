@@ -1,9 +1,14 @@
 const express = require('express');
 const cors = require('cors');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+require('dotenv').config(); // Load environment variables from .env file
 
-// Replace this with your API key
-const API_KEY = "AIzaSyBCQMkSt3LC9QS1fDuKGt12yTolggqkXJQ";
+const API_KEY = process.env.GOOGLE_API_KEY;
+
+if (!API_KEY) {
+  console.error("Error: GOOGLE_API_KEY is not set in the .env file.");
+  process.exit(1);
+}
 
 const app = express();
 const port = 3000;
@@ -11,7 +16,6 @@ const port = 3000;
 app.use(cors());
 app.use(express.json());
 
-// Initialize the Gemini AI model
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 const model = genAI.getGenerativeModel({
