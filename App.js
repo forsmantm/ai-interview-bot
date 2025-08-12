@@ -1,3 +1,4 @@
+import 'react-native-gesture-handler';
 import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
@@ -5,17 +6,30 @@ import {
   Text,
   ScrollView,
   TextInput,
-  Button,
+  TouchableOpacity,
   Keyboard,
   Platform,
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
 
-function InterviewBot() {
+import WelcomeScreen from './WelcomeScreen';
+import EndScreen from './EndScreen';
+
+const Stack = createStackNavigator();
+
+function InterviewBot({ navigation }) {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    const initialMessage = "Hello, I am your interview bot. What is your name?";
+    setMessages([{ text: initialMessage, sender: 'bot' }]);
+  }, []);
 
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (e) => {
@@ -34,11 +48,35 @@ function InterviewBot() {
     };
   }, []);
 
-  const handleSendMessage = () => {
-    if (inputText.trim() === '') return;
+  const handleSendMessage = async () => {
+    if (inputText.trim() === '' || isLoading) return;
 
-    setMessages([...messages, { text: inputText, sender: 'user' }]);
+    const userMessage = { text: inputText, sender: 'user' };
+    setMessages((prevMessages) => [...prevMessages, userMessage]);
     setInputText('');
+    setIsLoading(true);
+
+    try {
+      // The IP address has been updated here
+      const response = await fetch('http://192.168.68.57:3000/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: inputText }),
+      });
+
+      const data = await response.json();
+
+      const botReply = { text: data.reply, sender: 'bot' };
+      setMessages((prevMessages) => [...prevMessages, botReply]);
+    } catch (error) {
+      console.error('Failed to fetch from back-end:', error);
+      const errorMessage = { text: "Sorry, I can't connect to the server.", sender: 'bot' };
+      setMessages((prevMessages) => [...prevMessages, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -49,7 +87,9 @@ function InterviewBot() {
       >
         {messages.map((message, index) => (
           <View key={index} style={[styles.message, message.sender === 'user' ? styles.userMessage : styles.botMessage]}>
-            <Text style={styles.messageText}>{message.text}</Text>
+            <Text style={[styles.messageText, message.sender === 'user' ? { color: 'white' } : { color: 'black' }]}>
+              {message.text}
+            </Text>
           </View>
         ))}
       </ScrollView>
@@ -59,10 +99,13 @@ function InterviewBot() {
           style={styles.input}
           value={inputText}
           onChangeText={setInputText}
-          placeholder="Type your answer..."
-          onSubmitEditing={handleSendMessage} // ⬅️ New prop here
+          placeholder={isLoading ? "Waiting for bot..." : "Type your answer..."}
+          onSubmitEditing={handleSendMessage}
+          editable={!isLoading}
         />
-        <Button title="Send" onPress={handleSendMessage} />
+        <TouchableOpacity style={styles.sendButton} onPress={handleSendMessage} disabled={isLoading}>
+          <Text style={styles.sendButtonText}>Send</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -71,7 +114,35 @@ function InterviewBot() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <InterviewBot />
+      <NavigationContainer>
+        <Stack.Navigator initialRouteName="Welcome">
+          <Stack.Screen
+            name="Welcome"
+            component={WelcomeScreen}
+            options={{ title: 'Welcome' }}
+          />
+          <Stack.Screen
+            name="Interview"
+            component={InterviewBot}
+            options={({ navigation }) => ({
+              title: 'Interview',
+              headerRight: () => (
+                <TouchableOpacity
+                  style={styles.finishButton}
+                  onPress={() => navigation.navigate('End')}
+                >
+                  <Text style={styles.finishButtonText}>Finish interview.</Text>
+                </TouchableOpacity>
+              ),
+            })}
+          />
+          <Stack.Screen
+            name="End"
+            component={EndScreen}
+            options={{ title: 'Interview Finished', headerLeft: null }}
+          />
+        </Stack.Navigator>
+      </NavigationContainer>
     </SafeAreaProvider>
   );
 }
@@ -98,9 +169,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     backgroundColor: '#e5e5e5',
   },
-  messageText: {
-    color: 'white',
-  },
+  messageText: {},
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -114,5 +183,26 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 10,
     marginRight: 10,
+  },
+  sendButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 20,
+  },
+  sendButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  finishButton: {
+    backgroundColor: '#4CAF50',
+    padding: 8,
+    borderRadius: 8,
+    marginRight: 10,
+  },
+  finishButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });
