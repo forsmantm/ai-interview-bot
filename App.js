@@ -1,5 +1,5 @@
 import 'react-native-gesture-handler';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -19,23 +19,98 @@ import EndScreen from './EndScreen';
 
 const Stack = createStackNavigator();
 
-function InterviewBot({ navigation }) {
-  const [messages, setMessages] = useState([]);
+// A dictionary for random bot names in various languages
+const botNames = {
+  'English': ['Alex', 'Jordan', 'Taylor', 'Casey', 'Sam'],
+  'Finnish': ['Jari', 'Lauri', 'Satu', 'Elias', 'Aino'],
+  'Swedish': ['Anders', 'Ingrid', 'Olle', 'Frida', 'Erik'],
+  'Spanish': ['Elena', 'Carlos', 'Sofia', 'Mateo', 'Isabella'],
+  'German': ['Anna', 'Max', 'Lena', 'Felix', 'Clara'],
+};
+
+// A dictionary to translate professions based on the selected language
+const professions = {
+  'English': {
+    'computing': 'computing',
+    'construction': 'construction',
+    'healthcare': 'healthcare',
+  },
+  'Finnish': {
+    'computing': 'tietojenkäsittely',
+    'construction': 'rakennusala',
+    'healthcare': 'terveydenhuolto',
+  },
+  'Spanish': {
+    'computing': 'computación',
+    'construction': 'construcción',
+    'healthcare': 'cuidado de la salud',
+  },
+  'German': {
+    'computing': 'rechnen',
+    'construction': 'konstruktion',
+    'healthcare': 'gesundheitspflege',
+  },
+};
+
+function getRandomName(language) {
+  const names = botNames[language] || botNames['English'];
+  const randomIndex = Math.floor(Math.random() * names.length);
+  return names[randomIndex];
+}
+
+function getTranslatedProfession(language, profession) {
+  return professions[language]?.[profession] || profession;
+}
+
+function InterviewBot({ route, navigation }) {
+  const { language, profession } = route.params;
+  const [messages, setMessages] = useState([{ text: 'Waiting for AI generated greeting...', sender: 'bot' }]);
   const [inputText, setInputText] = useState('');
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const insets = useSafeAreaInsets();
+  const scrollViewRef = useRef();
 
   useEffect(() => {
-    const initialMessage = "Hello, I am your interview bot. What is your name?";
-    setMessages([{ text: initialMessage, sender: 'bot' }]);
-  }, []);
+    // Generate a random name and translate the profession
+    const botName = getRandomName(language);
+    const translatedProfession = getTranslatedProfession(language, profession);
+
+    const initialGreeting = async () => {
+      try {
+        const response = await fetch('http://192.168.68.57:3000/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: `Generate a casual greeting in ${language}. Introduce yourself as ${botName} and mention that we will be having a small talk about ${translatedProfession}.`,
+            language,
+            profession: translatedProfession,
+            botName,
+          }),
+        });
+
+        const data = await response.json();
+        setMessages([{ text: data.reply + '\n\n', sender: 'bot' }]);
+      } catch (error) {
+        console.error('Failed to fetch initial greeting:', error);
+        setMessages([{ text: "Sorry, I can't connect to the server.\n\n", sender: 'bot' }]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    initialGreeting();
+  }, [language, profession]);
 
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (e) => {
-      if (Platform.OS === 'android') {
-        setKeyboardHeight(e.endCoordinates.height);
-      }
+      setKeyboardHeight(e.endCoordinates.height);
+      setTimeout(() => {
+        if (scrollViewRef.current) {
+          scrollViewRef.current.scrollToEnd({ animated: true });
+        }
+      }, 100);
     });
 
     const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
@@ -48,6 +123,12 @@ function InterviewBot({ navigation }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollToEnd({ animated: true });
+    }
+  }, [messages]);
+
   const handleSendMessage = async () => {
     if (inputText.trim() === '' || isLoading) return;
 
@@ -57,22 +138,28 @@ function InterviewBot({ navigation }) {
     setIsLoading(true);
 
     try {
-      // The IP address has been updated here
+      const botName = messages[0]?.sender === 'bot' ? messages[0].text.split(' ')[4].replace(/[,.]/g, '') : getRandomName(language);
+      const translatedProfession = getTranslatedProfession(language, profession);
+
       const response = await fetch('http://192.168.68.57:3000/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message: inputText }),
+        body: JSON.stringify({
+          message: `Continue the casual small talk in ${language} about ${translatedProfession}. The user's last message is: "${inputText}"`,
+          language,
+          profession: translatedProfession,
+          botName,
+        }),
       });
 
       const data = await response.json();
-
-      const botReply = { text: data.reply, sender: 'bot' };
+      const botReply = { text: data.reply + '\n\n', sender: 'bot' };
       setMessages((prevMessages) => [...prevMessages, botReply]);
     } catch (error) {
       console.error('Failed to fetch from back-end:', error);
-      const errorMessage = { text: "Sorry, I can't connect to the server.", sender: 'bot' };
+      const errorMessage = { text: "Sorry, I can't connect to the server.\n\n", sender: 'bot' };
       setMessages((prevMessages) => [...prevMessages, errorMessage]);
     } finally {
       setIsLoading(false);
@@ -82,8 +169,9 @@ function InterviewBot({ navigation }) {
   return (
     <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
       <ScrollView
+        ref={scrollViewRef}
         style={[styles.messagesContainer, { paddingTop: insets.top, paddingHorizontal: 10 }]}
-        contentContainerStyle={styles.scrollContentContainer}
+        contentContainerStyle={[styles.scrollContentContainer]}
       >
         {messages.map((message, index) => (
           <View key={index} style={[styles.message, message.sender === 'user' ? styles.userMessage : styles.botMessage]}>

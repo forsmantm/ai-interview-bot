@@ -4,14 +4,18 @@ import { Picker } from '@react-native-picker/picker';
 
 const WelcomeScreen = ({ navigation }) => {
   const [selectedLanguage, setSelectedLanguage] = useState('English');
+  const [selectedProfession, setSelectedProfession] = useState('Computing');
 
   const startInterview = () => {
-    navigation.navigate('Interview', { language: selectedLanguage });
+    navigation.navigate('Interview', {
+      language: selectedLanguage,
+      profession: selectedProfession.toLowerCase(),
+    });
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Welcome to the AI Interview Bot!</Text>
+      <Text style={styles.title}>Welcome to the AI interview!</Text>
       <Text style={styles.subtitle}>Please select your language:</Text>
 
       <View style={styles.pickerContainer}>
@@ -22,13 +26,25 @@ const WelcomeScreen = ({ navigation }) => {
           itemStyle={styles.pickerItem}
         >
           <Picker.Item label="English" value="English" />
+          <Picker.Item label="Finnish" value="Finnish" />
           <Picker.Item label="Spanish" value="Spanish" />
           <Picker.Item label="German" value="German" />
-          <Picker.Item label="Finnish" value="Finnish" />
         </Picker>
       </View>
 
-      <Text style={styles.languageText}>Selected: {selectedLanguage}</Text>
+      <Text style={styles.subtitle}>Please select your field of profession:</Text>
+      <View style={styles.pickerContainer}>
+        <Picker
+          selectedValue={selectedProfession}
+          onValueChange={(itemValue, itemIndex) => setSelectedProfession(itemValue)}
+          style={styles.picker}
+          itemStyle={styles.pickerItem}
+        >
+          <Picker.Item label="Computing" value="computing" />
+          <Picker.Item label="Construction" value="construction" />
+          <Picker.Item label="Healthcare" value="healthcare" />
+        </Picker>
+      </View>
 
       <View style={styles.startButton}>
         <Button
@@ -72,11 +88,6 @@ const styles = StyleSheet.create({
     height: 50,
   },
   pickerItem: {},
-  languageText: {
-    fontSize: 16,
-    marginBottom: 40,
-    fontWeight: 'bold',
-  },
   startButton: {
     width: '100%',
   },
