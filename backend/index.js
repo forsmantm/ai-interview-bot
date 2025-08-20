@@ -19,37 +19,29 @@ app.use(express.json());
 const genAI = new GoogleGenerativeAI(API_KEY);
 const interviewSessions = {};
 
+// Existing /chat endpoint for the conversational part of the interview
 app.post('/chat', async (req, res) => {
-  const { message, language, profession } = req.body;
+  const { message, language, profession, botName } = req.body;
   const sessionId = req.headers['x-session-id'] || 'default';
 
   if (!interviewSessions[sessionId]) {
     interviewSessions[sessionId] = {
       history: [],
-      questionCount: 0,
       language: language,
       profession: profession,
     };
   }
 
   const session = interviewSessions[sessionId];
-  session.history.push({ role: 'user', parts: [{ text: message }] });
-  session.questionCount++;
+
+  if (message && !message.startsWith('Generate a casual greeting')) {
+    session.history.push({ role: 'user', parts: [{ text: message }] });
+  }
 
   console.log('Received message:', message);
   console.log(`Session ID: ${sessionId}, Profession: ${session.profession}`);
 
-  let instruction = `You are an AI interview bot. Your purpose is to act as a professional recruiter and ask the user questions to assess their skills and experience. The interview is for the field of ${session.profession} in ${session.language}.`;
-
-  if (session.questionCount <= 5) {
-    instruction += ` Start with a casual and friendly tone. Ask one question at a time and wait for the user's response.`;
-  } else if (session.questionCount > 5 && session.questionCount <= 15) {
-    instruction += ` You are now in the main phase of the interview. Your questions should be more specific and challenging, focusing on the user's technical skills and experience. Ask one question at a time and wait for the user's response.`;
-  } else if (session.questionCount > 15 && session.questionCount < 20) {
-    instruction += ` You are nearing the end of the interview. Ask your final questions, which should be very challenging. Ask one question at a time and wait for the user's response.`;
-  } else {
-    instruction += ` The interview is complete. Thank the user for their time and tell them to hit the "Finish interview." button to end the session. Do not ask any more questions.`;
-  }
+  const instruction = `You are an AI assistant named ${botName}. Your purpose is to have a casual small talk conversation in ${language} about the field of ${session.profession}. The user is practicing their language skills, so respond in a friendly and conversational manner. Keep your responses concise and focused on the topic. Do not ask for their name again if you already have it.`;
 
   try {
     const model = genAI.getGenerativeModel({
@@ -57,8 +49,13 @@ app.post('/chat', async (req, res) => {
       systemInstruction: instruction,
     });
 
-    // Send the entire history and the new message to the model
-    const chatContent = session.history.slice(); // Use a copy of the history
+    let chatContent;
+    if (message.startsWith('Generate a casual greeting')) {
+      chatContent = [{ role: 'user', parts: [{ text: message }] }];
+    } else {
+      chatContent = session.history.slice();
+    }
+
     const result = await model.generateContent({
       contents: chatContent,
       generationConfig: {
@@ -67,12 +64,59 @@ app.post('/chat', async (req, res) => {
     });
 
     const reply = result.response.text();
-    session.history.push({ role: 'model', parts: [{ text: reply }] });
+    
+    if (!message.startsWith('Generate a casual greeting')) {
+      session.history.push({ role: 'model', parts: [{ text: reply }] });
+    }
 
     res.json({ reply });
   } catch (error) {
     console.error('Error generating AI response:', error);
     res.status(500).json({ reply: "Sorry, I'm having trouble connecting to the AI model. Please try again." });
+  }
+});
+
+// New /analyze endpoint to generate a language proficiency report
+app.post('/analyze', async (req, res) => {
+  const { sessionId } = req.body;
+
+  if (!sessionId || !interviewSessions[sessionId]) {
+    return res.status(404).json({ error: 'Session not found.' });
+  }
+
+  const session = interviewSessions[sessionId];
+  const conversationHistory = session.history;
+
+  // Formulate a detailed prompt for the AI to perform a language analysis
+  const analysisPrompt = `
+  You are a language proficiency expert. Your task is to analyze a conversation in ${session.language} about the profession of ${session.profession} to assess the user's language skills.
+  
+  Provide a detailed report that evaluates the user's performance in the following areas:
+  1.  **Grammar and Syntax:** Comment on the accuracy of sentence structure and verb tense.
+  2.  **Vocabulary:** Assess the range and appropriateness of the vocabulary used.
+  3.  **Fluency and Cohesion:** Evaluate the flow of the conversation and how well the user connected their ideas.
+  4.  **Relevance to Topic:** Judge how well the user's responses stayed on topic with the profession of ${session.profession}.
+  
+  Please provide a summary and a final recommendation for areas of improvement. The report should be easy to read and formatted clearly.
+  
+  Here is the conversation to analyze:
+  ${conversationHistory.map(item => `${item.role === 'user' ? 'User' : 'Bot'}: ${item.parts[0].text}`).join('\n')}
+  `;
+
+  try {
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-flash",
+    });
+
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: analysisPrompt }] }],
+    });
+
+    const analysisReport = result.response.text();
+    res.json({ analysis: analysisReport });
+  } catch (error) {
+    console.error('Error generating analysis report:', error);
+    res.status(500).json({ error: "Sorry, I'm unable to generate the analysis report at this time." });
   }
 });
 

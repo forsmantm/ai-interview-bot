@@ -1,5 +1,6 @@
 import 'react-native-gesture-handler';
-import React, { useState, useEffect, useRef } from 'react';
+import 'react-native-get-random-values';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -13,6 +14,7 @@ import {
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import { v4 as uuidv4 } from 'uuid';
 
 import WelcomeScreen from './WelcomeScreen';
 import EndScreen from './EndScreen';
@@ -23,7 +25,6 @@ const Stack = createStackNavigator();
 const botNames = {
   'English': ['Alex', 'Jordan', 'Taylor', 'Casey', 'Sam'],
   'Finnish': ['Jari', 'Lauri', 'Satu', 'Elias', 'Aino'],
-  'Swedish': ['Anders', 'Ingrid', 'Olle', 'Frida', 'Erik'],
   'Spanish': ['Elena', 'Carlos', 'Sofia', 'Mateo', 'Isabella'],
   'German': ['Anna', 'Max', 'Lena', 'Felix', 'Clara'],
 };
@@ -68,20 +69,38 @@ function InterviewBot({ route, navigation }) {
   const [inputText, setInputText] = useState('');
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionId, setSessionId] = useState('');
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef();
+  const serverIp = '192.168.68.51';
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          style={styles.finishButton}
+          onPress={() => navigation.navigate('End', { sessionId: sessionId })}
+        >
+          <Text style={styles.finishButtonText}>Finish interview.</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, sessionId]);
 
   useEffect(() => {
-    // Generate a random name and translate the profession
+    const id = uuidv4();
+    setSessionId(id);
+
     const botName = getRandomName(language);
     const translatedProfession = getTranslatedProfession(language, profession);
 
     const initialGreeting = async () => {
       try {
-        const response = await fetch('http://192.168.68.57:3000/chat', {
+        const response = await fetch(`http://${serverIp}:3000/chat`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'x-session-id': id,
           },
           body: JSON.stringify({
             message: `Generate a casual greeting in ${language}. Introduce yourself as ${botName} and mention that we will be having a small talk about ${translatedProfession}.`,
@@ -137,33 +156,57 @@ function InterviewBot({ route, navigation }) {
     setInputText('');
     setIsLoading(true);
 
-    try {
-      const botName = messages[0]?.sender === 'bot' ? messages[0].text.split(' ')[4].replace(/[,.]/g, '') : getRandomName(language);
-      const translatedProfession = getTranslatedProfession(language, profession);
+    let success = false;
+    for (let i = 0; i < 5; i++) {
+      try {
+        const botName = messages[0]?.sender === 'bot' ? messages[0].text.split(' ')[4].replace(/[,.]/g, '') : getRandomName(language);
+        const translatedProfession = getTranslatedProfession(language, profession);
 
-      const response = await fetch('http://192.168.68.57:3000/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: `Continue the casual small talk in ${language} about ${translatedProfession}. The user's last message is: "${inputText}"`,
-          language,
-          profession: translatedProfession,
-          botName,
-        }),
-      });
+        const response = await fetch(`http://${serverIp}:3000/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-session-id': sessionId,
+          },
+          body: JSON.stringify({
+            message: `Continue the casual small talk in ${language} about ${translatedProfession}. The user's last message is: "${inputText}"`,
+            language,
+            profession: translatedProfession,
+            botName,
+          }),
+        });
 
-      const data = await response.json();
-      const botReply = { text: data.reply + '\n\n', sender: 'bot' };
-      setMessages((prevMessages) => [...prevMessages, botReply]);
-    } catch (error) {
-      console.error('Failed to fetch from back-end:', error);
-      const errorMessage = { text: "Sorry, I can't connect to the server.\n\n", sender: 'bot' };
-      setMessages((prevMessages) => [...prevMessages, errorMessage]);
-    } finally {
-      setIsLoading(false);
+        if (response.status === 503) {
+          console.log(`Retry attempt ${i + 1} failed with 503 error. Retrying in 3 seconds...`);
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          continue; // Continue to the next loop iteration
+        }
+
+        const data = await response.json();
+        const botReply = { text: data.reply + '\n\n', sender: 'bot' };
+        setMessages((prevMessages) => [...prevMessages, botReply]);
+        success = true;
+        break; // Exit the loop on success
+      } catch (error) {
+        console.error('Failed to fetch from back-end:', error);
+        const errorMessage = { text: "Sorry, I can't connect to the server.\n\n", sender: 'bot' };
+        setMessages((prevMessages) => [...prevMessages, errorMessage]);
+        break;
+      }
     }
+
+    if (success) {
+      setInputText('');
+    } else {
+      setMessages((prevMessages) => {
+        if (prevMessages[prevMessages.length - 1].sender !== 'bot' || !prevMessages[prevMessages.length - 1].text.includes("Sorry, I can't connect to the server.")) {
+          return [...prevMessages, { text: "Sorry, the service is currently unavailable. Please try again later.", sender: 'bot' }];
+        }
+        return prevMessages;
+      });
+    }
+
+    setIsLoading(false);
   };
 
   return (
@@ -212,17 +255,7 @@ export default function App() {
           <Stack.Screen
             name="Interview"
             component={InterviewBot}
-            options={({ navigation }) => ({
-              title: 'Interview',
-              headerRight: () => (
-                <TouchableOpacity
-                  style={styles.finishButton}
-                  onPress={() => navigation.navigate('End')}
-                >
-                  <Text style={styles.finishButtonText}>Finish interview.</Text>
-                </TouchableOpacity>
-              ),
-            })}
+            options={{ title: 'Interview' }}
           />
           <Stack.Screen
             name="End"
