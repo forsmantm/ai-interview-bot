@@ -1,29 +1,28 @@
 import React, { useState } from 'react';
-import { View, Text, Button, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Button } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 
 const WelcomeScreen = ({ navigation }) => {
-  const [selectedLanguage, setSelectedLanguage] = useState('English');
-  const [selectedProfession, setSelectedProfession] = useState('Computing');
+  const [language, setLanguage] = useState('English');
+  const [profession, setProfession] = useState('computing');
+  const [interviewerType, setInterviewerType] = useState('languageProficiencyExpert');
 
-  const startInterview = () => {
-    navigation.navigate('Interview', {
-      language: selectedLanguage,
-      profession: selectedProfession.toLowerCase(),
-    });
+  const handleStartInterview = () => {
+    navigation.navigate('Interview', { language, profession, interviewerType });
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Welcome to the AI interview!</Text>
-      <Text style={styles.subtitle}>Please select your language:</Text>
+      <Text style={styles.title}>Welcome!</Text>
+      <Text style={styles.instructions}>Please select your language, profession, and interviewer type to begin your practice interview.</Text>
 
       <View style={styles.pickerContainer}>
+        <Text style={styles.pickerLabel}>Select Language:</Text>
         <Picker
-          selectedValue={selectedLanguage}
-          onValueChange={(itemValue, itemIndex) => setSelectedLanguage(itemValue)}
+          selectedValue={language}
+          onValueChange={(itemValue) => setLanguage(itemValue)}
           style={styles.picker}
-          itemStyle={styles.pickerItem}
+          dropdownIconColor="#000"
         >
           <Picker.Item label="English" value="English" />
           <Picker.Item label="Finnish" value="Finnish" />
@@ -32,13 +31,13 @@ const WelcomeScreen = ({ navigation }) => {
         </Picker>
       </View>
 
-      <Text style={styles.subtitle}>Please select your field of profession:</Text>
       <View style={styles.pickerContainer}>
+        <Text style={styles.pickerLabel}>Select Profession:</Text>
         <Picker
-          selectedValue={selectedProfession}
-          onValueChange={(itemValue, itemIndex) => setSelectedProfession(itemValue)}
+          selectedValue={profession}
+          onValueChange={(itemValue) => setProfession(itemValue)}
           style={styles.picker}
-          itemStyle={styles.pickerItem}
+          dropdownIconColor="#000"
         >
           <Picker.Item label="Computing" value="computing" />
           <Picker.Item label="Construction" value="construction" />
@@ -46,11 +45,24 @@ const WelcomeScreen = ({ navigation }) => {
         </Picker>
       </View>
 
-      <View style={styles.startButton}>
+      <View style={styles.pickerContainer}>
+        <Text style={styles.pickerLabel}>Select Interviewer Type:</Text>
+        <Picker
+          selectedValue={interviewerType}
+          onValueChange={(itemValue) => setInterviewerType(itemValue)}
+          style={styles.picker}
+          dropdownIconColor="#000"
+        >
+          <Picker.Item label="Language Proficiency Expert" value="languageProficiencyExpert" />
+          <Picker.Item label="Language Proficiency CEFR" value="languageProficiencyCEFR" />
+        </Picker>
+      </View>
+
+      <View style={styles.buttonContainer}>
         <Button
           title="Start Interview"
-          onPress={startInterview}
-          color="#007AFF"
+          onPress={handleStartInterview}
+          color="#4CAF50"
         />
       </View>
     </View>
@@ -68,28 +80,32 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 18,
     marginBottom: 10,
+  },
+  instructions: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
   },
   pickerContainer: {
     width: '100%',
-    borderColor: '#ccc',
-    borderWidth: 1,
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginBottom: 20,
+    marginBottom: 15,
+  },
+  pickerLabel: {
+    fontSize: 16,
+    marginBottom: 5,
+    textAlign: 'center',
   },
   picker: {
     width: '100%',
-    height: 50,
+    backgroundColor: '#fff',
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 8,
   },
-  pickerItem: {},
-  startButton: {
-    width: '100%',
+  buttonContainer: {
+    width: '80%',
+    marginTop: 20,
   },
 });
 

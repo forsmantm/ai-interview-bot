@@ -21,7 +21,6 @@ import EndScreen from './EndScreen';
 
 const Stack = createStackNavigator();
 
-// A dictionary for random bot names in various languages
 const botNames = {
   'English': ['Alex', 'Jordan', 'Taylor', 'Casey', 'Sam'],
   'Finnish': ['Jari', 'Lauri', 'Satu', 'Elias', 'Aino'],
@@ -29,7 +28,6 @@ const botNames = {
   'German': ['Anna', 'Max', 'Lena', 'Felix', 'Clara'],
 };
 
-// A dictionary to translate professions based on the selected language
 const professions = {
   'English': {
     'computing': 'computing',
@@ -64,7 +62,7 @@ function getTranslatedProfession(language, profession) {
 }
 
 function InterviewBot({ route, navigation }) {
-  const { language, profession } = route.params;
+  const { language, profession, interviewerType } = route.params;
   const [messages, setMessages] = useState([{ text: 'Waiting for AI generated greeting...', sender: 'bot' }]);
   const [inputText, setInputText] = useState('');
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -72,7 +70,7 @@ function InterviewBot({ route, navigation }) {
   const [sessionId, setSessionId] = useState('');
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef();
-  const serverIp = '192.168.68.51';
+  const serverIp = '86.60.227.111';
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -107,6 +105,7 @@ function InterviewBot({ route, navigation }) {
             language,
             profession: translatedProfession,
             botName,
+            interviewerType,
           }),
         });
 
@@ -120,7 +119,7 @@ function InterviewBot({ route, navigation }) {
       }
     };
     initialGreeting();
-  }, [language, profession]);
+  }, [language, profession, interviewerType]);
 
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (e) => {
@@ -173,20 +172,21 @@ function InterviewBot({ route, navigation }) {
             language,
             profession: translatedProfession,
             botName,
+            interviewerType,
           }),
         });
 
         if (response.status === 503) {
           console.log(`Retry attempt ${i + 1} failed with 503 error. Retrying in 3 seconds...`);
           await new Promise(resolve => setTimeout(resolve, 3000));
-          continue; // Continue to the next loop iteration
+          continue;
         }
 
         const data = await response.json();
-        const botReply = { text: data.reply + '\n\n', sender: 'bot' };
+        const botReply = { text: data.reply + '\n\n\n', sender: 'bot' };
         setMessages((prevMessages) => [...prevMessages, botReply]);
         success = true;
-        break; // Exit the loop on success
+        break;
       } catch (error) {
         console.error('Failed to fetch from back-end:', error);
         const errorMessage = { text: "Sorry, I can't connect to the server.\n\n", sender: 'bot' };

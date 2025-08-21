@@ -9,7 +9,7 @@ const EndScreen = ({ route, navigation }) => {
   const getAnalysisReport = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://192.168.68.51:3000/analyze', {
+      const response = await fetch('http://86.60.227.111:3000/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
