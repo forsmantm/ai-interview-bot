@@ -1,6 +1,20 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Button } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import { v4 as uuidv4 } from 'uuid';
+
+const botNames = {
+  'English': ['Alex', 'Jordan', 'Taylor', 'Casey', 'Sam'],
+  'Finnish': ['Jari', 'Lauri', 'Satu', 'Elias', 'Aino'],
+  'Spanish': ['Elena', 'Carlos', 'Sofia', 'Mateo', 'Isabella'],
+  'German': ['Anna', 'Max', 'Lena', 'Felix', 'Clara'],
+};
+
+function getRandomName(language) {
+  const names = botNames[language] || botNames['English'];
+  const randomIndex = Math.floor(Math.random() * names.length);
+  return names[randomIndex];
+}
 
 const WelcomeScreen = ({ navigation }) => {
   const [language, setLanguage] = useState('English');
@@ -8,7 +22,8 @@ const WelcomeScreen = ({ navigation }) => {
   const [interviewerType, setInterviewerType] = useState('languageProficiencyExpert');
 
   const handleStartInterview = () => {
-    navigation.navigate('Interview', { language, profession, interviewerType });
+    const botName = getRandomName(language);
+    navigation.navigate('Interview', { language, profession, interviewerType, botName });
   };
 
   return (

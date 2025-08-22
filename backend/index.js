@@ -19,22 +19,16 @@ app.use(express.json());
 const genAI = new GoogleGenerativeAI(API_KEY);
 const interviewSessions = {};
 
-const createCEFRPrompt = (language, profession, botName, history) => {
-  let level = 'A1'; // Start with the most basic level
+const createCEFRPrompt = (language, profession, botName) => {
+  return `You are a language teacher named ${botName}. Your task is to conduct an interview in ${language} to assess the user's proficiency based on the Common European Framework of Reference for Languages (CEFR) standard.
 
-  // Logic to determine the current CEFR level based on conversation length or complexity
-  // This is a simplified example; a real-world implementation would require more advanced logic.
-  if (history.length > 8) level = 'A2';
-  if (history.length > 15) level = 'B1';
-  if (history.length > 25) level = 'B2';
-  if (history.length > 35) level = 'C1';
-  if (history.length > 45) level = 'C2';
+Your instructions are as follows:
+1.  **First Response:** Your first response must be a very short and simple greeting, like "Hello, how are you?". Your purpose is to determine if the user is beyond an A1 level. The tone should be very casual and friendly.
+2.  **Progressive Difficulty:** If the user's responses indicate they can use more challenging language, ask more difficult questions to test for the next CEFR level. For example, if they demonstrate A1 skills, test for A2, and so on. Only introduce language related to the profession of ${profession} once the user has qualified for a higher level (B1 or above).
+3.  **Handle Misunderstandings:** If the user fails to answer a question or clearly misunderstands you, rephrase the question using different words. You should try this up to three times. If the user still fails to respond appropriately after three attempts, conclude that they have not yet reached the level you were testing.
+4.  **Conclude the Interview:** Once you have enough data to determine the user's final CEFR level, tell them that the interview has come to an end and that they can now press "Finish interview." After this point, you should no longer ask any questions.
 
-  return `You are an AI language teacher named ${botName}. Your purpose is to assess the user's language proficiency in ${language} for the profession of ${profession}, using the Common European Framework of Reference for Languages (CEFR) standard. Start with very simple questions to test for an A1 level. If the user's responses indicate they can use more challenging language, gradually increase the difficulty to test for the next CEFR level (e.g., A2, B1, etc.).
-
-When you have enough data to determine the user's final CEFR level (e.g., after a series of questions across different levels), let them know the interview is over and that they can press "Finish interview." Do not ask any more questions after that. Try to test at least a few times to see if they qualify for the next level.
-
-Your response should be in ${language}.`;
+Your responses should be in ${language}.`;
 };
 
 // Existing /chat endpoint for the conversational part of the interview
@@ -53,8 +47,18 @@ app.post('/chat', async (req, res) => {
 
   const session = interviewSessions[sessionId];
 
+  // The very first message is from the front-end to trigger the greeting.
+  // The first user message is received after the initial greeting is sent.
   if (message && !message.startsWith('Generate a casual greeting')) {
     session.history.push({ role: 'user', parts: [{ text: message }] });
+  }
+  
+  // This is a special case for the initial greeting and should be sent exactly as is
+  let chatContents = [{ role: 'user', parts: [{ text: message }] }];
+  if (message.startsWith('Generate a casual greeting')) {
+    chatContents = [{ role: 'user', parts: [{ text: message }] }];
+  } else {
+    chatContents = session.history.slice();
   }
 
   console.log('Received message:', message);
@@ -73,15 +77,8 @@ app.post('/chat', async (req, res) => {
       systemInstruction: instruction,
     });
 
-    let chatContent;
-    if (message.startsWith('Generate a casual greeting')) {
-      chatContent = [{ role: 'user', parts: [{ text: message }] }];
-    } else {
-      chatContent = session.history.slice();
-    }
-
     const result = await model.generateContent({
-      contents: chatContent,
+      contents: chatContents,
       generationConfig: {
         maxOutputTokens: 100,
       },

@@ -21,13 +21,6 @@ import EndScreen from './EndScreen';
 
 const Stack = createStackNavigator();
 
-const botNames = {
-  'English': ['Alex', 'Jordan', 'Taylor', 'Casey', 'Sam'],
-  'Finnish': ['Jari', 'Lauri', 'Satu', 'Elias', 'Aino'],
-  'Spanish': ['Elena', 'Carlos', 'Sofia', 'Mateo', 'Isabella'],
-  'German': ['Anna', 'Max', 'Lena', 'Felix', 'Clara'],
-};
-
 const professions = {
   'English': {
     'computing': 'computing',
@@ -51,18 +44,12 @@ const professions = {
   },
 };
 
-function getRandomName(language) {
-  const names = botNames[language] || botNames['English'];
-  const randomIndex = Math.floor(Math.random() * names.length);
-  return names[randomIndex];
-}
-
 function getTranslatedProfession(language, profession) {
   return professions[language]?.[profession] || profession;
 }
 
 function InterviewBot({ route, navigation }) {
-  const { language, profession, interviewerType } = route.params;
+  const { language, profession, interviewerType, botName } = route.params;
   const [messages, setMessages] = useState([{ text: 'Waiting for AI generated greeting...', sender: 'bot' }]);
   const [inputText, setInputText] = useState('');
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -89,7 +76,6 @@ function InterviewBot({ route, navigation }) {
     const id = uuidv4();
     setSessionId(id);
 
-    const botName = getRandomName(language);
     const translatedProfession = getTranslatedProfession(language, profession);
 
     const initialGreeting = async () => {
@@ -119,7 +105,7 @@ function InterviewBot({ route, navigation }) {
       }
     };
     initialGreeting();
-  }, [language, profession, interviewerType]);
+  }, [language, profession, interviewerType, botName]);
 
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (e) => {
@@ -152,13 +138,12 @@ function InterviewBot({ route, navigation }) {
 
     const userMessage = { text: inputText, sender: 'user' };
     setMessages((prevMessages) => [...prevMessages, userMessage]);
-    setInputText('');
+    
     setIsLoading(true);
 
     let success = false;
     for (let i = 0; i < 5; i++) {
       try {
-        const botName = messages[0]?.sender === 'bot' ? messages[0].text.split(' ')[4].replace(/[,.]/g, '') : getRandomName(language);
         const translatedProfession = getTranslatedProfession(language, profession);
 
         const response = await fetch(`http://${serverIp}:3000/chat`, {
@@ -183,14 +168,12 @@ function InterviewBot({ route, navigation }) {
         }
 
         const data = await response.json();
-        const botReply = { text: data.reply + '\n\n\n', sender: 'bot' };
+        const botReply = { text: data.reply + '\n\n', sender: 'bot' };
         setMessages((prevMessages) => [...prevMessages, botReply]);
         success = true;
         break;
       } catch (error) {
         console.error('Failed to fetch from back-end:', error);
-        const errorMessage = { text: "Sorry, I can't connect to the server.\n\n", sender: 'bot' };
-        setMessages((prevMessages) => [...prevMessages, errorMessage]);
         break;
       }
     }
